@@ -1,0 +1,4 @@
+2020.07.06
+Maintain gateway client code version control for easy maintenance.
+This client code (socketread.c, socketwrite.c, etc) are used with tisubg_hostcollector which need TI-15.4 Stack CoP.
+The CMD1 and Sub-command ID may changed for system design change.
