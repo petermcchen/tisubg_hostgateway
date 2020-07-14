@@ -25,7 +25,10 @@ int main(int argc , char *argv[])
     int sockfd = 0;
     int count;
     int i, offset;
-    unsigned short payloadlen, num, framectrl;
+    unsigned short payloadlen, framectrl;
+    unsigned short num;
+    unsigned int inum;
+    short ambience_t, object_t, saddr;
     int rssi;
 
 retry:
@@ -60,15 +63,16 @@ retry:
     	count = recv(sockfd,receiveMessage,sizeof(receiveMessage),0);
      	for(i = 0;i<count;i++)
      	{
-     		printf("%02x ", (unsigned char)receiveMessage[i]);
+     		//printf("%02x ", (unsigned char)receiveMessage[i]);
      	}
      	printf("\n");
     	/* check data begin */
+     	printf("Message process begin...\n");
     	num=0;
 	num = *(unsigned short *)&receiveMessage[0];
     	//printf("payloadlen: %d (before swap)\n", num);
 	payloadlen = (num>>8) | (num<<8); // swap 2 bytes
-    	printf("payloadlen: %d\n", payloadlen);
+    	//printf("payloadlen: %d\n", payloadlen);
 	i=0;
 	if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x00)) { // APPSRV_SYS_ID_RPC, DEVICE_JOINED_IND
     		printf("CMD1 DEVICE_JOINED_IND not implemented yet.\n");
@@ -88,6 +92,10 @@ retry:
 	else if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x09)) { // APPSRV_SYS_ID_RPC, DEVICE_DATA_RX_IND
     		//printf("APPSRV_SYS_ID_RPC, DEVICE_DATA_RX_IND.\n");
 		if (receiveMessage[i+4] == 0x02) { // ADDTYPE_SHORT
+    			num=0;
+			num = *(unsigned short *)&receiveMessage[i+5];
+			saddr = (num>>8) | (num<<8); // swap 2 bytes
+    			printf("short addr: %d\n", saddr);
 			offset += 2;
 		}
 		else if (receiveMessage[i+4] == 0x03) { // ADDTYPE_EXT
@@ -118,18 +126,58 @@ retry:
     				printf("Found tempSensor data.\n");
 				num=0;
 				num = *(unsigned short *)&receiveMessage[k];
+				ambience_t = (num>>8) | (num<<8); // swap 2 bytes
+				k = k+2;
+				num = *(unsigned short *)&receiveMessage[k];
+				object_t = (num>>8) | (num<<8); // swap 2 bytes
+    				printf("- ambience temperature: %d, object temperature: %d.\n", ambience_t, object_t);
+				k = k+2;
 			}
 			if (framectrl & 0x02) { // lightSensor
     				printf("Found lightSensor data.\n");
+				k = k+2;
 			}
 			if (framectrl & 0x04) { // humiditySensor
     				printf("Found humiditySensor data.\n");
+				k = k+4;
 			}
 			if (framectrl & 0x08) { // msgStats
     				printf("Found msgStats data.\n");
+				num=0;
+				num = *(unsigned short *)&receiveMessage[k+4];
+				short msgcounts = (num>>8) | (num<<8); // swap 2 bytes
+    				printf("- msgsAttempted: %d.\n", msgcounts);
+				num=0;
+				num = *(unsigned short *)&receiveMessage[k+6];
+				short msgsent = (num>>8) | (num<<8); // swap 2 bytes
+    				printf("- msgsSent: %d.\n", msgsent);
+				printf("Device (%d) has packet loss rate: %f\n", saddr, (float)(msgcounts-msgsent)/(float)msgcounts);
+				num=0;
+				num = *(unsigned short *)&receiveMessage[k+44];
+				short e2edelay = (num>>8) | (num<<8); // swap 2 bytes
+    				printf("- avgE2EDelay: %d.\n", e2edelay);
+				num=0;
+				num = *(unsigned short *)&receiveMessage[k+46];
+				short maxe2edelay = (num>>8) | (num<<8); // swap 2 bytes
+    				printf("- worstCaseE2EDelay: %d.\n", maxe2edelay);
+				k = k+48; // 2*24, ATTENTION!!!
 			}
 			if (framectrl & 0x10) { // configSettings
     				printf("Found configSettings data.\n");
+				inum=0;
+				inum = *(unsigned int *)&receiveMessage[k];
+				unsigned int reportinterval = ((inum>>24)&0xff) | // move byte 3 to byte 0
+			                    ((inum<<8)&0xff0000) | // move byte 1 to byte 2
+			                    ((inum>>8)&0xff00) | // move byte 2 to byte 1
+			                    ((inum<<24)&0xff000000); // byte 0 to byte 3
+    				printf("- reporting interval: %d.\n", reportinterval);
+				inum = *(unsigned int *)&receiveMessage[k+4];
+				unsigned int pollinterval = ((inum>>24)&0xff) | // move byte 3 to byte 0
+			                    ((inum<<8)&0xff0000) | // move byte 1 to byte 2
+			                    ((inum>>8)&0xff00) | // move byte 2 to byte 1
+			                    ((inum<<24)&0xff000000); // byte 0 to byte 3
+    				printf("- polling interval: %d.\n", pollinterval);
+				k = k+8;
 			}
 			if (framectrl & 0x8000) { // batteryVoltage (ACCTON)
     				printf("(c) Found batteryVoltage data.\n");
@@ -154,6 +202,7 @@ retry:
 	else {
     		printf("Unknown message.\n");
 	}
+     	printf("Message process end...\n");
     	/* check data end */
     }
     printf("close Socket\n");

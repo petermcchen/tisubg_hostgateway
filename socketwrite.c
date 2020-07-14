@@ -6,7 +6,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-
+/***********************************************************************************/
+/* Argument 1 (argv[1]) indicates LLC Commands. (mandatory)                        */
+/* Argument 2 (argv[2]) indicates MSG commands if any. (option)                    */
+/***********************************************************************************/
 int main(int argc , char *argv[])
 {
 
@@ -16,13 +19,13 @@ int main(int argc , char *argv[])
 
     if (argc <2) {
 	printf("Pass your command option.");
-	return;
+	return -1;
     }
     sockfd = socket(AF_INET , SOCK_STREAM , 0);
 
     if (sockfd == -1){
         printf("Fail to create a socket.");
-	return;
+	return -1;
     }
 
     struct sockaddr_in info;
@@ -36,20 +39,26 @@ int main(int argc , char *argv[])
     int err = connect(sockfd,(struct sockaddr *)&info,sizeof(info));
     if(err==-1){
         printf("Connection error");
+	return;
     }
+    if (!strcmp(argv[1], "11")) { // SET_JOIN_PERMIT_REQ
+	if (argc < 3) {
+		printf("Pass your command option (open:1 / close:2).");
+		return;
+	}
 	buff[0] = 0x4; //two bytes len
 	buff[1] = 0x0;
 	buff[2] = 0xa; //subsystem id
 	buff[3] = 0xb; //permit join command
-	if (!strcmp(argv[1], "1")) { // 1: open
-        	printf("Command: open\n");
+	if (!strcmp(argv[2], "1")) { // 1: open
+       		printf("Command: open\n");
 		buff[4] = 0xff; //4 bytes parameters (open)
 		buff[5] = 0xff;
 		buff[6] = 0xff;
 		buff[7] = 0xff;
 	}
-	else if (!strcmp(argv[1], "2")) { // 2: close
-        	printf("Command: close\n");
+	else if (!strcmp(argv[2], "2")) { // 2: close
+       		printf("Command: close\n");
 		buff[4] = 0x0; //4 bytes parameters (close)
 		buff[5] = 0x0;
 		buff[6] = 0x0;
@@ -60,6 +69,7 @@ int main(int argc , char *argv[])
 		printf("Sent %d bytes\n", sent);
 	else
 		printf("Sent failed\n");
+    }
 
     printf("close Socket\n");
     close(sockfd);
