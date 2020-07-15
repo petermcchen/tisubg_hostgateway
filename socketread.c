@@ -30,6 +30,15 @@ int main(int argc , char *argv[])
     unsigned int inum;
     short ambience_t, object_t, saddr;
     int rssi;
+    int endianness; /* 0: little, 1: big */
+    char *c;
+
+    i = 1;
+    c = (char *) &i;
+    if (*c)
+        endianness=0;
+    else
+        endianness=1;
 
 retry:
     sockfd = socket(AF_INET , SOCK_STREAM , 0);
@@ -71,7 +80,10 @@ retry:
     	num=0;
 	num = *(unsigned short *)&receiveMessage[0];
     	//printf("payloadlen: %d (before swap)\n", num);
-	payloadlen = (num>>8) | (num<<8); // swap 2 bytes
+	if (endianness)
+		payloadlen = (num>>8) | (num<<8); // swap 2 bytes
+	else
+		payloadlen = num;
     	//printf("payloadlen: %d\n", payloadlen);
 	i=0;
 	if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x00)) { // APPSRV_SYS_ID_RPC, DEVICE_JOINED_IND
@@ -94,7 +106,10 @@ retry:
 		if (receiveMessage[i+4] == 0x02) { // ADDTYPE_SHORT
     			num=0;
 			num = *(unsigned short *)&receiveMessage[i+5];
-			saddr = (num>>8) | (num<<8); // swap 2 bytes
+			if (endianness)
+				saddr = (num>>8) | (num<<8); // swap 2 bytes
+			else
+				saddr = num;
     			printf("short addr: %d\n", saddr);
 			offset += 2;
 		}
@@ -119,17 +134,26 @@ retry:
     			num=0;
 			num = *(unsigned short *)&receiveMessage[i+offset+15];
     			//printf("framecontrol: %x (before swap).\n", num);
-			framectrl = (num>>8) | (num<<8); // swap 2 bytes
+			if (endianness)
+				framectrl = (num>>8) | (num<<8); // swap 2 bytes
+			else
+				framectrl = num;
     			printf("framecontrol: %x.\n", framectrl);
 			k=i+offset+17;
 			if (framectrl & 0x01) { // tempSensor
     				printf("Found tempSensor data.\n");
 				num=0;
 				num = *(unsigned short *)&receiveMessage[k];
-				ambience_t = (num>>8) | (num<<8); // swap 2 bytes
+				if (endianness)
+					ambience_t = (num>>8) | (num<<8); // swap 2 bytes
+				else
+					ambience_t = num;
 				k = k+2;
 				num = *(unsigned short *)&receiveMessage[k];
-				object_t = (num>>8) | (num<<8); // swap 2 bytes
+				if (endianness)
+					object_t = (num>>8) | (num<<8); // swap 2 bytes
+				else
+					object_t = num;
     				printf("- ambience temperature: %d, object temperature: %d.\n", ambience_t, object_t);
 				k = k+2;
 			}
@@ -145,20 +169,36 @@ retry:
     				printf("Found msgStats data.\n");
 				num=0;
 				num = *(unsigned short *)&receiveMessage[k+4];
-				short msgcounts = (num>>8) | (num<<8); // swap 2 bytes
+				short msgcounts;
+				if (endianness)
+					msgcounts = (num>>8) | (num<<8); // swap 2 bytes
+				else
+					msgcounts = num;
     				printf("- msgsAttempted: %d.\n", msgcounts);
 				num=0;
 				num = *(unsigned short *)&receiveMessage[k+6];
-				short msgsent = (num>>8) | (num<<8); // swap 2 bytes
+				short msgsent;
+				if (endianness)
+					msgsent = (num>>8) | (num<<8); // swap 2 bytes
+				else
+					msgsent = num;
     				printf("- msgsSent: %d.\n", msgsent);
 				printf("Device (%d) has packet loss rate: %f\n", saddr, (float)(msgcounts-msgsent)/(float)msgcounts);
 				num=0;
 				num = *(unsigned short *)&receiveMessage[k+44];
-				short e2edelay = (num>>8) | (num<<8); // swap 2 bytes
+				short e2edelay;
+				if (endianness)
+					e2edelay = (num>>8) | (num<<8); // swap 2 bytes
+				else
+					e2edelay = num;
     				printf("- avgE2EDelay: %d.\n", e2edelay);
 				num=0;
 				num = *(unsigned short *)&receiveMessage[k+46];
-				short maxe2edelay = (num>>8) | (num<<8); // swap 2 bytes
+				short maxe2edelay;
+				if (endianness)
+					maxe2edelay = (num>>8) | (num<<8); // swap 2 bytes
+				else
+					maxe2edelay = num;
     				printf("- worstCaseE2EDelay: %d.\n", maxe2edelay);
 				k = k+48; // 2*24, ATTENTION!!!
 			}
@@ -166,16 +206,24 @@ retry:
     				printf("Found configSettings data.\n");
 				inum=0;
 				inum = *(unsigned int *)&receiveMessage[k];
-				unsigned int reportinterval = ((inum>>24)&0xff) | // move byte 3 to byte 0
+				unsigned int reportinterval;
+				if (endianness)
+					reportinterval = ((inum>>24)&0xff) | // move byte 3 to byte 0
 			                    ((inum<<8)&0xff0000) | // move byte 1 to byte 2
 			                    ((inum>>8)&0xff00) | // move byte 2 to byte 1
 			                    ((inum<<24)&0xff000000); // byte 0 to byte 3
+				else
+					reportinterval = inum;
     				printf("- reporting interval: %d.\n", reportinterval);
 				inum = *(unsigned int *)&receiveMessage[k+4];
-				unsigned int pollinterval = ((inum>>24)&0xff) | // move byte 3 to byte 0
+				unsigned int pollinterval;
+				if (endianness)
+					pollinterval = ((inum>>24)&0xff) | // move byte 3 to byte 0
 			                    ((inum<<8)&0xff0000) | // move byte 1 to byte 2
 			                    ((inum>>8)&0xff00) | // move byte 2 to byte 1
 			                    ((inum<<24)&0xff000000); // byte 0 to byte 3
+				else
+					pollinterval = inum;
     				printf("- polling interval: %d.\n", pollinterval);
 				k = k+8;
 			}
@@ -201,6 +249,7 @@ retry:
 	}
 	else {
     		printf("Unknown message.\n");
+		break;
 	}
      	printf("Message process end...\n");
     	/* check data end */
