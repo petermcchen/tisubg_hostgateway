@@ -72,7 +72,7 @@ retry:
     	count = recv(sockfd,receiveMessage,sizeof(receiveMessage),0);
      	for(i = 0;i<count;i++)
      	{
-     		//printf("%02x ", (unsigned char)receiveMessage[i]);
+     		printf("%02x ", (unsigned char)receiveMessage[i]);
      	}
      	printf("\n");
     	/* check data begin */
@@ -92,17 +92,11 @@ retry:
 	else if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x02)) { // APPSRV_SYS_ID_RPC, NWK_INFO_IND
     		printf("CMD1 NWK_INFO_IND not implemented yet.\n");
 	}
-	else if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x05)) { // APPSRV_SYS_ID_RPC, GET_NWK_INFO_CNF
-    		printf("CMD1 GET_NWK_INFO_CNF not implemented yet.\n");
-	}
-	else if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x07)) { // APPSRV_SYS_ID_RPC, GET_DEVICE_ARRAY_CNF
-    		printf("CMD1 GET_DEVICE_ARRAY_CNF not implemented yet.\n");
-	}
 	else if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x08)) { // APPSRV_SYS_ID_RPC, DEVICE_NOTACTIVE_UPDATE_IND
     		printf("CMD1 DEVICE_NOTACTIVE_UPDATE_IND not implemented yet.\n");
 	}
 	else if ((receiveMessage[i+2] == 0x4a) && (receiveMessage[i+3] == 0x09)) { // APPSRV_SYS_ID_RPC, DEVICE_DATA_RX_IND
-    		//printf("APPSRV_SYS_ID_RPC, DEVICE_DATA_RX_IND.\n");
+    		printf("APPSRV_SYS_ID_RPC, DEVICE_DATA_RX_IND.\n");
 		if (receiveMessage[i+4] == 0x02) { // ADDTYPE_SHORT
     			num=0;
 			num = *(unsigned short *)&receiveMessage[i+5];
