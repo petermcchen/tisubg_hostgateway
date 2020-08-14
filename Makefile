@@ -13,6 +13,7 @@ CFLAGS +=-Wall -Wmissing-prototypes -Wstrict-prototypes -Iinc -xc -v -Xlinker --
 ROBJ = socketread.o 
 WOBJ = socketwrite.o 
 TOBJ = checkendian.o 
+SOBJ = subgcli.o 
 
 %.o: %.c $(DEPS)
 	$(bbb_GCC_EXE) -c -o $@ $< $(CFLAGS)
@@ -24,6 +25,9 @@ socketwrite: $(WOBJ)
 	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS}
 
 checkendian: $(TOBJ)
+	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS}
+
+subgcli: $(SOBJ)
 	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS}
 
 .PHONY: clean

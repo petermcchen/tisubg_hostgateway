@@ -1,3 +1,5 @@
+2020.08.13
+Add subgcli.c file from Adam who sent on 2020.07.21.
 2020.07.14
 Implement data parser when DEVICE_DATA_RX_IND.
 Use corrent number for LLC commands.

@@ -21,6 +21,7 @@ typedef enum {
     Cmd_NetStat = 5,
     Cmd_ListDev = 6,
     Cmd_RmvDev = 7,
+    Cmd_Version = 8, // mc_chen
 } CmdId_t;
 
 int sockfd = 0;
@@ -28,6 +29,8 @@ int sockfd = 0;
 unsigned long int inet_addr(const char *);
 int validate_params(int, char **, int);
 int send_allow_join(int);
+int send_get_version_info(void); // mc_chen
+int recv_version_info(void); //mc_chen
 int send_get_network_info(void);
 int send_get_device_list(void);
 int send_remove_device(int);
@@ -169,6 +172,25 @@ int main(int argc , char *argv[])
             remove("nv-simulation.bin"); //delete the file for simulating non-volatile section
 
 
+        } else if(strcmp(tokens[0], "version")==0) {
+            if(validate_params(Cmd_Version, tokens, tok_cnt)) {
+                printf("Parameter(s) error!\n");
+                printf("e.g. 'version'\n");
+                continue;
+            }
+
+            if(create_socket()) {
+                continue;
+            }
+
+            if(send_get_version_info()) {
+                printf("Command failure\n");
+            } else {
+                if(recv_version_info())
+                    printf("Command failure\n");
+            }
+            close(sockfd);
+
         } else if(strcmp(tokens[0], "netstat")==0) {
             if(validate_params(Cmd_NetStat, tokens, tok_cnt)) {
                 printf("Parameter(s) error!\n");
@@ -280,6 +302,26 @@ int send_allow_join(int on_off)
 }
 
 
+int send_get_version_info() // mc_chen
+{
+    unsigned char buff[64];
+    int sent;
+
+    buff[0] = 0x0; //two bytes len
+    buff[1] = 0x0;
+    buff[2] = 0xa; //subsystem id
+    buff[3] = 0x12; //get version info command APPSRV_GET_SW_VER_REQ, refer to appsrv.h file
+
+    sent = send(sockfd, buff, 4, 0);
+
+    if(sent>=0) {
+        //printf("Sent %d bytes\n", sent);
+        return(0);
+    } else {
+        //printf("Sent failed\n");
+        return(-1);
+    }
+}
 
 int send_get_network_info()
 {
@@ -346,6 +388,59 @@ int send_remove_device(int short_addr)
     }
 }
 
+
+int recv_version_info() // mc_chen
+{
+    unsigned char rxbuff[32];
+    int count, i, index, len;
+    unsigned char subsystem_id, cmd, transport, product, major, minor, maint, version;
+    unsigned char sdk1, sdk2, sdk3, sdk4;
+    char *transport_str[] = {"", "", "Standard RPC frame", "Extended RPC frame"};
+    char *product_str[] = {"Z-Stack", "TI-15.4-Stack"};
+
+    count = recv(sockfd, rxbuff, sizeof(rxbuff) ,0);
+
+    /*
+    for(i=0;i<count;i++)
+    {
+        printf("%02x ", (unsigned char)rxbuff[i]);
+    }
+    printf("\n");
+    */
+
+    if(count<4)
+        return(-1);
+    index = 0;
+    len = get_uint16(rxbuff, index);
+    if(len < 6) // transport, product, major, minor, maint, version
+        return(-1);
+    index += 2;
+    subsystem_id = rxbuff[index++];
+    cmd = rxbuff[index++];
+    if(cmd!=0x13) // APPSRV_GET_SW_VER_CNF 0x13
+        return(-1);
+
+    transport = rxbuff[index++];
+    product = rxbuff[index++];
+    major = rxbuff[index++];
+    minor = rxbuff[index++];
+    maint = rxbuff[index++];
+    sdk1 = rxbuff[index++];
+    sdk2 = rxbuff[index++];
+    sdk3 = rxbuff[index++];
+    sdk4 = rxbuff[index++];
+    version = rxbuff[index++];
+
+    printf("MT Transport: %s\n", transport_str[transport]);
+    printf("MT Product: %s\n", product_str[product]);
+    printf("MT Major: %d\n", major);
+    printf("MT Minor: %d\n", minor);
+    printf("MT Maint: %d\n", maint);
+    printf("Linux SDK Version: %d,%d,%d,%d\n", sdk1, sdk2, sdk3, sdk4);
+    printf("SW Version: %d\n", version);
+
+    return(0);
+}
 
 int recv_network_info()
 {
@@ -551,6 +646,10 @@ int validate_params(int command, char **tokens, int tok_cnt)
                 if(!(value>0 && value<0x10000))
                     result = -1;
             }
+        break;
+        case(Cmd_Version): // mc_chen
+            if(tok_cnt!=1)
+                result = -1;
         break;
         default:
         break;
