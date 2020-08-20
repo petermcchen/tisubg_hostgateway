@@ -29,6 +29,7 @@ int sockfd = 0;
 unsigned long int inet_addr(const char *);
 int validate_params(int, char **, int);
 int send_allow_join(int);
+int send_allow_join2(unsigned int); // mc_chen
 int send_get_version_info(void); // mc_chen
 int recv_version_info(void); //mc_chen
 int send_get_network_info(void);
@@ -55,7 +56,7 @@ int main(int argc , char *argv[])
     char inpc;
     int tok_cnt;
     int i, j, flag;
-    unsigned int pan_id;
+    unsigned int pan_id, interval;
     char version[] = "v1.2";
 
     time_t t;
@@ -74,10 +75,11 @@ int main(int argc , char *argv[])
         token = strtok(input_cmd, " ");
         tok_cnt = 0;
         while( token != NULL ) {
-              //printf( " %s\n", token ); //printing each token
+              printf( " %s\n", token ); //printing each token
               tokens[tok_cnt++] = token;
               token = strtok(NULL, " ");
         }
+        printf( "tok_cnt=%d\n", tok_cnt); //printing tok_cnt
 
         if(strcmp(tokens[0], "resetpan")==0) {
             if(validate_params(Cmd_ResetPan, tokens, tok_cnt)) {
@@ -107,7 +109,7 @@ int main(int argc , char *argv[])
             c_chan_mask_str[0] = 9; //tab character
             strcpy(c_chan_mask_str+1, "config-channel-mask =");
             for(i=1;i<tok_cnt;i++) {
-                //printf(" %s", tokens[i]);
+                printf(" %s", tokens[i]);
                 if(i==tok_cnt-1)
                     sprintf(token_str, " %s\n", tokens[i]);
                 else
@@ -233,9 +235,21 @@ int main(int argc , char *argv[])
             }
             if(create_socket())
                 continue;
-            if(send_allow_join((!strcmp(tokens[1], "on"))?1:0)) {
+	    /**************************************************/
+	    if (!strcmp(tokens[1], "on")) { // read 3rd if on...
+		interval = strtoul(tokens[2], NULL, 16);
+	    }
+	    else {
+		interval = 0;
+	    }
+            printf("Permit join interval: 0x%x\n", interval);
+            if(send_allow_join2(interval)) {
                 printf("Command failure\n");
             }
+	    /**************************************************/
+            //if(send_allow_join((!strcmp(tokens[1], "on"))?1:0)) {
+            //    printf("Command failure\n");
+            //}
             close(sockfd);
         } else if(strcmp(tokens[0], "rmdev")==0) {
             if(validate_params(Cmd_RmvDev, tokens, tok_cnt)) {
@@ -301,6 +315,31 @@ int send_allow_join(int on_off)
     }
 }
 
+int send_allow_join2(unsigned int val)
+{
+    unsigned char buff[64];
+    int sent;
+
+    buff[0] = 0x4; //two bytes len
+    buff[1] = 0x0;
+    buff[2] = 0xa; //subsystem id
+    buff[3] = 0xb; //permit join command
+
+    buff[4] = val & 0x000000FF; //4 bytes parameters (open)
+    buff[5] = (val>>8) & 0x000000FF;
+    buff[6] = (val>>16) & 0x000000FF;
+    buff[7] = (val>>24) & 0x000000FF;
+    printf("interval: 0x%x, 0x%x, 0x%x, 0x%x\n", buff[4], buff[5], buff[6], buff[7]);
+
+    sent = send(sockfd, buff, 8, 0);
+    if(sent>=0) {
+        //printf("Sent %d bytes\n", sent);
+        return(0);
+    } else {
+        //printf("Sent failed\n");
+        return(-1);
+    }
+}
 
 int send_get_version_info() // mc_chen
 {
@@ -627,8 +666,15 @@ int validate_params(int command, char **tokens, int tok_cnt)
 
         break;
         case(Cmd_AllowJoin):
-            if(tok_cnt!=2||(strcmp((const char *)tokens[1], "on") && strcmp((const char *)tokens[1], "off")))
+	    //if(tok_cnt!=2||(strcmp((const char *)tokens[1], "on") && strcmp((const char *)tokens[1], "off")))
+		// result = -1;
+/*****************************************************/
+	    printf("tok_cnt=%d\n", tok_cnt);
+            if((tok_cnt!=2) && (!strcmp((const char *)tokens[1], "off")))
                 result = -1;
+            if((tok_cnt!=3) && (!strcmp((const char *)tokens[1], "on")))
+                result = -1;
+/*****************************************************/
         break;
         case(Cmd_NetStat):
             if(tok_cnt!=1)
