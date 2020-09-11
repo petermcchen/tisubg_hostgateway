@@ -79,7 +79,7 @@ int main(int argc , char *argv[])
               tokens[tok_cnt++] = token;
               token = strtok(NULL, " ");
         }
-        printf( "tok_cnt=%d\n", tok_cnt); //printing tok_cnt
+        //printf( "tok_cnt=%d\n", tok_cnt); //printing tok_cnt
 
         if(strcmp(tokens[0], "resetpan")==0) {
             if(validate_params(Cmd_ResetPan, tokens, tok_cnt)) {
@@ -109,7 +109,7 @@ int main(int argc , char *argv[])
             c_chan_mask_str[0] = 9; //tab character
             strcpy(c_chan_mask_str+1, "config-channel-mask =");
             for(i=1;i<tok_cnt;i++) {
-                printf(" %s", tokens[i]);
+                //printf(" %s", tokens[i]);
                 if(i==tok_cnt-1)
                     sprintf(token_str, " %s\n", tokens[i]);
                 else
@@ -250,6 +250,7 @@ int main(int argc , char *argv[])
             //if(send_allow_join((!strcmp(tokens[1], "on"))?1:0)) {
             //    printf("Command failure\n");
             //}
+	    sleep(1);
             close(sockfd);
         } else if(strcmp(tokens[0], "rmdev")==0) {
             if(validate_params(Cmd_RmvDev, tokens, tok_cnt)) {
@@ -264,6 +265,7 @@ int main(int argc , char *argv[])
             if(send_remove_device(strtoul(tokens[1], NULL, 16))) {
                 printf("Command failure\n");
             }
+	    sleep(1);
             close(sockfd);
 
         } else if(strcmp(tokens[0], "help")==0) {
