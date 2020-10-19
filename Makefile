@@ -14,6 +14,7 @@ ROBJ = socketread.o
 WOBJ = socketwrite.o 
 TOBJ = checkendian.o 
 SOBJ = subgcli.o 
+GOBJ = testgetchar.o 
 
 %.o: %.c $(DEPS)
 	$(bbb_GCC_EXE) -c -o $@ $< $(CFLAGS)
@@ -28,6 +29,9 @@ checkendian: $(TOBJ)
 	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS}
 
 subgcli: $(SOBJ)
+	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS}
+
+testgetchar: $(GOBJ)
 	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS}
 
 .PHONY: clean
