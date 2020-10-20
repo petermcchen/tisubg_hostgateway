@@ -22,6 +22,8 @@ typedef enum {
     Cmd_ListDev = 6,
     Cmd_RmvDev = 7,
     Cmd_Version = 8, // mc_chen
+    Cmd_OadFile = 9, // mc_chen
+    Cmd_OadUpdate = 10, // mc_chen
 } CmdId_t;
 
 int sockfd = 0;
@@ -32,6 +34,8 @@ int send_allow_join(int);
 int send_allow_join2(unsigned int); // mc_chen
 int send_get_version_info(void); // mc_chen
 int recv_version_info(void); //mc_chen
+int send_oad_file(char *); //mc_chen
+int recv_oad_file(void); //mc_chen
 int send_get_network_info(void);
 int send_get_device_list(void);
 int send_remove_device(int);
@@ -79,7 +83,7 @@ int main(int argc , char *argv[])
               tokens[tok_cnt++] = token;
               token = strtok(NULL, " ");
         }
-        //printf( "tok_cnt=%d\n", tok_cnt); //printing tok_cnt
+        printf( "tok_cnt=%d\n", tok_cnt); //printing tok_cnt
 
         if(strcmp(tokens[0], "resetpan")==0) {
             if(validate_params(Cmd_ResetPan, tokens, tok_cnt)) {
@@ -173,7 +177,6 @@ int main(int argc , char *argv[])
             rename("temp.cfg", "collector.cfg"); //rename the temp file
             remove("nv-simulation.bin"); //delete the file for simulating non-volatile section
 
-
         } else if(strcmp(tokens[0], "version")==0) {
             if(validate_params(Cmd_Version, tokens, tok_cnt)) {
                 printf("Parameter(s) error!\n");
@@ -227,6 +230,7 @@ int main(int argc , char *argv[])
                     printf("Command failure\n");
             }
             close(sockfd);
+
         } else if(strcmp(tokens[0], "allowjoin")==0) {
             if(validate_params(Cmd_AllowJoin, tokens, tok_cnt)) {
                 printf("Parameter(s) error!\n");
@@ -252,6 +256,7 @@ int main(int argc , char *argv[])
             //}
 	    sleep(1);
             close(sockfd);
+
         } else if(strcmp(tokens[0], "rmdev")==0) {
             if(validate_params(Cmd_RmvDev, tokens, tok_cnt)) {
                 printf("Parameter(s) error!\n");
@@ -266,6 +271,39 @@ int main(int argc , char *argv[])
                 printf("Command failure\n");
             }
 	    sleep(1);
+            close(sockfd);
+
+        } else if(strcmp(tokens[0], "oadfile")==0) {
+            if(validate_params(Cmd_OadFile, tokens, tok_cnt)) {
+                printf("Parameter(s) error!\n");
+                printf("e.g. 'oadfile /mnt/data/HEM/db/sensor_oad.bin'\n");
+                continue;
+            }
+            if(create_socket())
+                continue;
+            if(send_oad_file(tokens[1])) {
+                printf("Command failure\n");
+            } else {
+                printf("Call recv_oad_file\n");
+                if(recv_oad_file())
+                    printf("Command failure\n");
+            }
+            close(sockfd);
+
+        } else if(strcmp(tokens[0], "oadupdate")==0) {
+            if(validate_params(Cmd_OadUpdate, tokens, tok_cnt)) {
+                printf("Parameter(s) error!\n");
+                printf("e.g. 'oadupdate 0x01'\n");
+                continue;
+            }
+            if(create_socket())
+                continue;
+            if(send_oad_update(strtoul(tokens[1], NULL, 16))) {
+                printf("Command failure\n");
+            } else {
+                if(recv_oad_update())
+                    printf("Command failure\n");
+            }
             close(sockfd);
 
         } else if(strcmp(tokens[0], "help")==0) {
@@ -364,6 +402,58 @@ int send_get_version_info() // mc_chen
     }
 }
 
+int send_oad_file(char *fname) // mc_chen
+{
+    unsigned char buff[64];
+    int len;
+    int sent;
+
+    printf("File Path=%s\n", fname);
+    len = strlen(fname);
+    printf("File Path %d bytes\n", len);
+    buff[0] = len+2; //two bytes len + file path
+    buff[1] = 0x0;
+    buff[2] = 0xa; //subsystem id
+    buff[3] = 0x14; //set oad fw file path, APPSRV_OAD_FW_FILE_REQ
+
+    buff[4] = len & 0xff;
+    buff[5] = len >> 8;
+    strncpy(&buff[6], fname, len);
+
+    sent = send(sockfd, buff, 6+len, 0);
+    if(sent>=0) {
+        printf("Sent %d bytes\n", sent);
+        return(0);
+    } else {
+        printf("Sent failed\n");
+        return(-1);
+    }
+}
+
+int send_oad_update(int short_addr) // mc_chen
+{
+    unsigned char buff[64];
+    int sent;
+
+    printf("Short Address=%d\n", short_addr);
+    buff[0] = 0x2; //two bytes len for short address
+    buff[1] = 0x0;
+    buff[2] = 0xa; //subsystem id
+    buff[3] = 0x16; //do oad fw update, APPSRV_OAD_FW_UPDATE_REQ
+
+    buff[4] = short_addr & 0xff;
+    buff[5] = short_addr >> 8;
+
+    sent = send(sockfd, buff, 6, 0);
+    if(sent>=0) {
+        printf("Sent %d bytes\n", sent);
+        return(0);
+    } else {
+        printf("Sent failed\n");
+        return(-1);
+    }
+}
+
 int send_get_network_info()
 {
     unsigned char buff[64];
@@ -429,6 +519,76 @@ int send_remove_device(int short_addr)
     }
 }
 
+
+int recv_oad_update() // mc_chen
+{
+    unsigned char rxbuff[32];
+    int count, i, index, len, status;
+    unsigned char subsystem_id, cmd;
+
+    count = recv(sockfd, rxbuff, sizeof(rxbuff) ,0);
+
+    /*
+    for(i=0;i<count;i++)
+    {
+        printf("%02x ", (unsigned char)rxbuff[i]);
+    }
+    printf("\n");
+    */
+
+    if(count<4)
+        return(-1);
+    index = 0;
+    len = get_uint16(rxbuff, index);
+    if(len != 4) // int
+        return(-1);
+    index += 2;
+    subsystem_id = rxbuff[index++];
+    cmd = rxbuff[index++];
+    if(cmd!=0x17) // APPSRV_OAD_FW_UPDATE_CNF 0x17
+        return(-1);
+
+    status = get_uint32(rxbuff, index);
+
+    printf("APPSRV_OAD_FW_UPDATE_CNF: %d\n", status);
+
+    return(0);
+}
+
+int recv_oad_file() // mc_chen
+{
+    unsigned char rxbuff[32];
+    int count, i, index, len, status;
+    unsigned char subsystem_id, cmd;
+
+    count = recv(sockfd, rxbuff, sizeof(rxbuff) ,0);
+
+    //
+    for(i=0;i<count;i++)
+    {
+        printf("%02x ", (unsigned char)rxbuff[i]);
+    }
+    printf("\n");
+    //
+
+    if(count<4)
+        return(-1);
+    index = 0;
+    len = get_uint16(rxbuff, index);
+    if(len != 4) // int
+        return(-1);
+    index += 2;
+    subsystem_id = rxbuff[index++];
+    cmd = rxbuff[index++];
+    if(cmd!=0x15) // APPSRV_OAD_FW_FILE_CNF 0x15
+        return(-1);
+
+    status = get_uint32(rxbuff, index);
+
+    printf("APPSRV_OAD_FW_FILE_CNF: %d\n", status);
+
+    return(0);
+}
 
 int recv_version_info() // mc_chen
 {
@@ -698,6 +858,19 @@ int validate_params(int command, char **tokens, int tok_cnt)
         case(Cmd_Version): // mc_chen
             if(tok_cnt!=1)
                 result = -1;
+        break;
+        case(Cmd_OadFile): // mc_chen
+            if(tok_cnt!=2)
+                result = -1;
+        break;
+        case(Cmd_OadUpdate): // mc_chen
+            if(tok_cnt!=2)
+                result = -1;
+            else {
+                value = strtoul(tokens[1], NULL, 16); //hex string to integer
+                if(!(value>0 && value<0x10000))
+                    result = -1;
+            }
         break;
         default:
         break;
