@@ -25,6 +25,7 @@ typedef enum {
     Cmd_OadFile = 9, // mc_chen
     Cmd_OadUpdate = 10, // mc_chen
     Cmd_OadStatus = 11, // mc_chen
+    Cmd_OadState = 12, // mc_chen
 } CmdId_t;
 
 int sockfd = 0;
@@ -324,6 +325,27 @@ int main(int argc , char *argv[])
             }
             close(sockfd);
 
+        } else if(strcmp(tokens[0], "oadstate")==0) {
+	    int value;
+            if(validate_params(Cmd_OadState, tokens, tok_cnt)) {
+                printf("Parameter(s) error!\n");
+                printf("e.g. 'oadstate 0x01'\n");
+                continue;
+            }
+            if(create_socket())
+                continue;
+	    if (tok_cnt == 1)
+		value = 0;
+	    if (tok_cnt == 2)
+		value = strtoul(tokens[1], NULL, 16);
+            if(send_oad_state(value)) {
+                printf("Command send_oad_state failure\n");
+            } else {
+                if(recv_oad_state())
+                    printf("Command recv_oad_state failure\n");
+            }
+            close(sockfd);
+
         } else if(strcmp(tokens[0], "help")==0) {
             printf("Supported commands: resetpan, allowjoin, netstat, listdev, rmdev, bye, help\n");
             printf("resetpan: To reset the PAN configuration.\n");
@@ -561,6 +583,64 @@ int send_remove_device(int short_addr)
     }
 }
 
+int send_oad_state(int short_addr)
+{
+    unsigned char buff[64];
+    int sent;
+
+    buff[0] = 0x2; //two bytes len
+    buff[1] = 0x0;
+    buff[2] = 0xa; //subsystem id
+    buff[3] = 0x18; //query collector state, APPSRV_OAD_GET_STATE_REQ
+
+    buff[4] = short_addr & 0xff;
+    buff[5] = short_addr >> 8;
+
+    sent = send(sockfd, buff, 6, 0);
+    if(sent>=0) {
+        //printf("Sent %d bytes\n", sent);
+        return(0);
+    } else {
+        //printf("Sent failed\n");
+        return(-1);
+    }
+}
+
+int recv_oad_state() // mc_chen
+{
+    unsigned char rxbuff[32];
+    int count, i, index, len, status;
+    unsigned int stateInfo;
+    unsigned short sentBlocks, fileBlocks;
+    unsigned char subsystem_id, cmd;
+
+    count = recv(sockfd, rxbuff, sizeof(rxbuff) ,0);
+
+    if(count<4)
+        return(-1);
+    index = 0;
+    len = get_uint16(rxbuff, index);
+    printf("APPSRV_OAD_GET_STATE_CNF: len=%d\n", len);
+    if((len != 5)&&(len != 1)) // 5 bytes or 1 byte
+        return(-1);
+    index += 2;
+    subsystem_id = rxbuff[index++];
+    cmd = rxbuff[index++];
+    if(cmd!=0x19) // APPSRV_OAD_GET_STATE_CNF 0x19
+        return(-1);
+
+    status = rxbuff[index++]; // 1 byte
+    printf("APPSRV_OAD_GET_STATE_CNF: %d\n", status);
+    if (len == 5) {
+	stateInfo = get_uint32(rxbuff, index);
+	sentBlocks = (stateInfo & 0x00FFFF);
+	fileBlocks = ((stateInfo>>16) & 0x00FFFF);
+
+	printf("APPSRV_OAD_GET_STATE_CNF: 0x%x, 0x%x\n", sentBlocks, fileBlocks);
+    }
+
+    return(0);
+}
 
 int recv_oad_status() // mc_chen
 {
@@ -961,6 +1041,15 @@ int validate_params(int command, char **tokens, int tok_cnt)
         case(Cmd_OadStatus): // mc_chen
             if(tok_cnt!=1)
                 result = -1;
+        break;
+        case(Cmd_OadState): // mc_chen
+            if((tok_cnt!=2)&&(tok_cnt!=1))
+                result = -1;
+	    if (tok_cnt == 2) {
+                value = strtoul(tokens[1], NULL, 16); //hex string to integer
+                if(!(value>0 && value<0x10000))
+                    result = -1;
+	    }
         break;
         default:
         break;
