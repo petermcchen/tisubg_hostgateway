@@ -26,6 +26,7 @@ typedef enum {
     Cmd_OadUpdate = 10, // mc_chen
     Cmd_OadStatus = 11, // mc_chen
     Cmd_OadState = 12, // mc_chen
+    Cmd_OadDevVer = 13, // mc_chen
 } CmdId_t;
 
 int sockfd = 0;
@@ -346,6 +347,20 @@ int main(int argc , char *argv[])
             }
             close(sockfd);
 
+        } else if(strcmp(tokens[0], "oaddevver")==0) {
+            if(validate_params(Cmd_OadDevVer, tokens, tok_cnt)) {
+                printf("Parameter(s) error!\n");
+                printf("e.g. 'oadver 0x01'\n");
+                continue;
+            }
+            if(create_socket())
+                continue;
+            if(send_oad_devver(strtoul(tokens[1], NULL, 16))) {
+                printf("Command failure\n");
+            }
+	    sleep(1);
+            close(sockfd);
+
         } else if(strcmp(tokens[0], "help")==0) {
             printf("Supported commands: resetpan, allowjoin, netstat, listdev, rmdev, bye, help\n");
             printf("resetpan: To reset the PAN configuration.\n");
@@ -592,6 +607,29 @@ int send_oad_state(int short_addr)
     buff[1] = 0x0;
     buff[2] = 0xa; //subsystem id
     buff[3] = 0x18; //query collector state, APPSRV_OAD_GET_STATE_REQ
+
+    buff[4] = short_addr & 0xff;
+    buff[5] = short_addr >> 8;
+
+    sent = send(sockfd, buff, 6, 0);
+    if(sent>=0) {
+        //printf("Sent %d bytes\n", sent);
+        return(0);
+    } else {
+        //printf("Sent failed\n");
+        return(-1);
+    }
+}
+
+int send_oad_devver(int short_addr) // mc_chen
+{
+    unsigned char buff[64];
+    int sent;
+
+    buff[0] = 0x2; //two bytes len
+    buff[1] = 0x0;
+    buff[2] = 0xa; //subsystem id
+    buff[3] = 0x1a; //query device FW version, APPSRV_GET_DEVICE_FW_VERSION_REQ
 
     buff[4] = short_addr & 0xff;
     buff[5] = short_addr >> 8;
@@ -1051,6 +1089,14 @@ int validate_params(int command, char **tokens, int tok_cnt)
                     result = -1;
 	    }
         break;
+	case(Cmd_OadDevVer): // mc_chen
+            if(tok_cnt!=2)
+                result = -1;
+            else {
+                value = strtoul(tokens[1], NULL, 16); //hex string to integer
+                if(!(value>0 && value<0x10000))
+                    result = -1;
+            }
         default:
         break;
     }

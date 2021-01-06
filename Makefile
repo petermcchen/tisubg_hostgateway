@@ -37,6 +37,7 @@ TGOBJ = testgetchar.o
 TSOBJ = teststatic.o
 ASOBJ = subgcli_a.o 
 OUOBJ = oadu.o
+CKOBJ = clock.o
 
 %.o: %.c $(DEPS)
 	$(bbb_GCC_EXE) -c -o $@ $< $(CFLAGS)
@@ -63,6 +64,9 @@ subgcli_a: $(ASOBJ)
 	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS}
 
 oadu: $(OUOBJ)
+	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS} $(SHARE_LIB_PATH) $(SHARE_LIB)
+
+clock: $(CKOBJ)
 	$(bbb_GCC_EXE) -o $@ $^ $(CFLAGS) ${ARCH_CFLAGS} $(SHARE_LIB_PATH) $(SHARE_LIB)
 
 .PHONY: clean print_inc
